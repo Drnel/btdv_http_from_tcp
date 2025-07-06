@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io"
+	"github.com/Drnel/btdv_http_from_tcp/internal/request"
 	"net"
-	"os"
-	"strings"
 )
 
 func main() {
@@ -22,43 +20,17 @@ func main() {
 			return
 		}
 		fmt.Printf("A connection has been accepted\n")
-		lines := getLinesChannel(connection)
-		for line := range lines {
-			fmt.Printf("%s\n", line)
+		request, err := request.RequestFromReader(connection)
+		if err != nil {
+			fmt.Printf("Error parsing request from reader: %s", err)
+			return
 		}
+		fmt.Printf("Request line:\n")
+		fmt.Printf("- Method: %s\n", request.RequestLine.Method)
+		fmt.Printf("- Target: %s\n", request.RequestLine.RequestTarget)
+		fmt.Printf("- Version: %s\n", request.RequestLine.HttpVersion)
+
 		connection.Close()
 		fmt.Printf("The connection has been closed\n")
 	}
-}
-
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	channel := make(chan string)
-	go func() {
-		defer close(channel)
-		defer f.Close()
-		file_read_buffer := make([]byte, 8)
-		current_line := ""
-		for {
-			n, err := f.Read(file_read_buffer)
-			if err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					fmt.Printf("File read error: %s", err)
-					os.Exit(1)
-				}
-			}
-			current_line = current_line + string(file_read_buffer[:n])
-			parts := strings.Split(current_line, "\n")
-			if len(parts) > 1 {
-				channel <- parts[0]
-				current_line = "" + parts[1]
-			}
-		}
-		if current_line != "" {
-			channel <- current_line
-		}
-
-	}()
-	return channel
 }
