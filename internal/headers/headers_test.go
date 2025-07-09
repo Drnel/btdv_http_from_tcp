@@ -29,12 +29,12 @@ func TestHeaderParse(t *testing.T) {
 	assert.False(t, done)
 
 	// Test: Valid 2 headers with existing headers
-	data = []byte("   Host:    localhost:42069     \r\n Host_2: localhost:32344\r\n\r\n")
+	data = []byte("   Host:    localhost:42169     \r\n Host_2: localhost:32344\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
 	assert.Equal(t, len(headers), 1)
-	assert.Equal(t, "localhost:42069", headers["host"])
+	assert.Equal(t, "localhost:42069, localhost:42169", headers["host"])
 	assert.Equal(t, 34, n)
 	assert.False(t, done)
 

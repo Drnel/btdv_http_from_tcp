@@ -23,7 +23,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if !valid_field_name(header_parts[0]) {
 		return 0, false, errors.New("Invalid character in field_name")
 	}
-	h[strings.ToLower(header_parts[0])] = strings.TrimSpace(header_parts[1])
+	value, ok := h[strings.ToLower(header_parts[0])]
+	if ok {
+		h[strings.ToLower(header_parts[0])] = value + ", " + strings.TrimSpace(header_parts[1])
+	} else {
+		h[strings.ToLower(header_parts[0])] = strings.TrimSpace(header_parts[1])
+	}
 	return len(lines[0]) + 2, false, nil
 }
 
