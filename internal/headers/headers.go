@@ -48,3 +48,7 @@ func valid_field_name(field_name string) bool {
 	}
 	return true
 }
+
+func (h Headers) Get(key string) string {
+	return h[strings.ToLower(key)]
+}
