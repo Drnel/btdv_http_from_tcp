@@ -2,6 +2,7 @@ package request
 
 import (
 	"errors"
+	"github.com/Drnel/btdv_http_from_tcp/internal/headers"
 	"io"
 	"strings"
 )
@@ -10,8 +11,17 @@ const bufferSize = 8
 
 type Request struct {
 	RequestLine RequestLine
-	parserState int // 0 initialized | 1 done
+	Headers     headers.Headers
+	ParserState ParserState // 0 initialized | 1 done
 }
+
+type ParserState int
+
+const (
+	initialized = iota
+	requestStateParseHeaders
+	requestStateDone
+)
 
 type RequestLine struct {
 	HttpVersion   string
@@ -23,8 +33,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
 	request := Request{}
-	request.parserState = 0
-	for request.parserState != 1 {
+	request.Headers = make(headers.Headers)
+	request.ParserState = initialized
+	for request.ParserState != requestStateDone {
 		if readToIndex == len(buf) {
 			new_buf := make([]byte, len(buf)*2, len(buf)*2)
 			copy(new_buf, buf)
@@ -33,18 +44,20 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		n, err := reader.Read(buf[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				request.parserState = 1
+				if request.ParserState != requestStateDone {
+					return nil, errors.New("unexpected eof")
+				}
 				break
 			}
 			return &request, err
 		}
 		readToIndex += n
-		bytes_read, err := request.parse(buf[:readToIndex])
+		bytes_parsed, err := request.parse(buf[:readToIndex])
 		if err != nil {
 			return &request, err
 		}
-		copy(buf, buf[bytes_read:])
-		readToIndex = readToIndex - bytes_read
+		copy(buf, buf[bytes_parsed:])
+		readToIndex = readToIndex - bytes_parsed
 	}
 	return &request, nil
 }
@@ -70,23 +83,40 @@ func parseRequestLine(request_string string) (RequestLine, int, error) {
 		return RequestLine{}, 0, errors.New("Invalid http version")
 	}
 	rl.HttpVersion = "1.1"
-	return rl, len(request_lines[0]), nil
+	return rl, len(request_lines[0]) + 2, nil
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.parserState == 0 {
-		RequestLine, bytes_read, err := parseRequestLine(string(data))
+	if r.ParserState == initialized {
+		RequestLine, bytes_parsed, err := parseRequestLine(string(data))
 		if err != nil {
 			return 0, err
 		}
-		if bytes_read == 0 {
+		if bytes_parsed == 0 {
 			return 0, nil
 		}
 		r.RequestLine = RequestLine
-		r.parserState = 1
-		return bytes_read, nil
+		r.ParserState = requestStateParseHeaders
+		return bytes_parsed, nil
 	}
-	if r.parserState == 1 {
+	if r.ParserState == requestStateParseHeaders {
+		totalBytesParsed := 0
+		for r.ParserState != requestStateDone {
+			bytes_parsed, done, err := r.Headers.Parse(data[totalBytesParsed:])
+			if err != nil {
+				return totalBytesParsed, err
+			}
+			if bytes_parsed == 0 {
+				return totalBytesParsed, nil
+			}
+			totalBytesParsed += bytes_parsed
+			if done {
+				r.ParserState = requestStateDone
+			}
+		}
+		return totalBytesParsed, nil
+	}
+	if r.ParserState == requestStateDone {
 		return 0, errors.New("error: trying to read data in a done state")
 	}
 	return 0, errors.New("error: unknown state")

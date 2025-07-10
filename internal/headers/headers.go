@@ -17,6 +17,9 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 	header := strings.TrimSpace(lines[0])
 	header_parts := strings.SplitN(header, ":", 2)
+	if len(header_parts) != 2 {
+		return 0, false, errors.New("couldnt find ':' in the field")
+	}
 	if header_parts[0] != strings.TrimSpace(header_parts[0]) {
 		return 0, false, errors.New("Space between key and ':'")
 	}
@@ -33,7 +36,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 }
 
 func valid_field_name(field_name string) bool {
-	allowedRunes := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~`"
+	allowedRunes := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
 	allowedRunesMap := make(map[rune]bool)
 	for _, r := range allowedRunes {
 		allowedRunesMap[r] = true
