@@ -33,6 +33,8 @@ func main() {
 		for field_name, field_value := range request.Headers {
 			fmt.Printf("- %s: %s\n", field_name, field_value)
 		}
+		fmt.Printf("Body:\n")
+		fmt.Printf("%s\n", string(request.Body))
 
 		connection.Close()
 		fmt.Printf("The connection has been closed\n")
