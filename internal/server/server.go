@@ -13,8 +13,9 @@ import (
 )
 
 type Server struct {
-	Listener    net.Listener
-	Close_state atomic.Bool
+	listener    net.Listener
+	handler     Handler
+	close_state atomic.Bool
 }
 
 type HandlerError struct {
@@ -47,46 +48,47 @@ func Serve(port int, handler Handler) (*Server, error) {
 		return nil, err
 	}
 	server := Server{
-		Listener: listner,
+		listener: listner,
+		handler:  handler,
 	}
-	server.Close_state.Store(false)
-	go server.listen(handler)
+	server.close_state.Store(false)
+	go server.listen()
 	return &server, nil
 }
 
 func (s *Server) Close() error {
-	s.Close_state.Store(true)
-	err := s.Listener.Close()
+	s.close_state.Store(true)
+	err := s.listener.Close()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Server) listen(handler Handler) {
+func (s *Server) listen() {
 	for {
-		if s.Close_state.Load() == true {
+		if s.close_state.Load() == true {
 			break
 		}
-		connection, err := s.Listener.Accept()
+		connection, err := s.listener.Accept()
 		if err != nil {
-			if s.Close_state.Load() == true {
+			if s.close_state.Load() == true {
 				break
 			}
 			log.Println("error accepting connection: ", err)
 		}
-		go s.handle(connection, handler)
+		go s.handle(connection)
 	}
 }
 
-func (s *Server) handle(conn net.Conn, handler Handler) {
+func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	request, err := request.RequestFromReader(conn)
 	if err != nil {
 		log.Println("error while parsing request:", err)
 	}
 	var buf bytes.Buffer
-	handler_err := handler(&buf, request)
+	handler_err := s.handler(&buf, request)
 	if handler_err != nil {
 		err := handler_err.Write(conn)
 		if err != nil {
