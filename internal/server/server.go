@@ -1,9 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -23,19 +21,20 @@ type HandlerError struct {
 	Message     string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request) *HandlerError
 
-func (h *HandlerError) Write(w io.Writer) error {
+func (h *HandlerError) Write(w *response.Writer) error {
 	default_headers := response.GetDefaultHeaders(len(h.Message))
-	err := response.WriteStatusLine(w, response.StatusCode(h.Status_code))
+	default_headers["Content-Type"] = "text/html"
+	err := w.WriteStatusLine(response.StatusCode(h.Status_code))
 	if err != nil {
 		return err
 	}
-	err = response.WriteHeaders(w, default_headers)
+	err = w.WriteHeaders(default_headers)
 	if err != nil {
 		return err
 	}
-	_, err = w.Write([]byte(h.Message))
+	_, err = w.WriteBody([]byte(h.Message))
 	if err != nil {
 		return err
 	}
@@ -87,29 +86,16 @@ func (s *Server) handle(conn net.Conn) {
 	if err != nil {
 		log.Println("error while parsing request:", err)
 	}
-	var buf bytes.Buffer
-	handler_err := s.handler(&buf, request)
+	response_writer := response.Writer{
+		WriterState: response.WriteStateStatusLine,
+		Writer:      conn,
+	}
+	handler_err := s.handler(&response_writer, request)
 	if handler_err != nil {
-		err := handler_err.Write(conn)
+		err := handler_err.Write(&response_writer)
 		if err != nil {
 			log.Println("error while writing handler error to connection:", err)
 		}
-		return
-	}
-	default_response_headers := response.GetDefaultHeaders(buf.Len())
-	err = response.WriteStatusLine(conn, response.Ok)
-	if err != nil {
-		log.Println("error writing status line:", err)
-		return
-	}
-	err = response.WriteHeaders(conn, default_response_headers)
-	if err != nil {
-		log.Println("error writing headers:", err)
-		return
-	}
-	_, err = conn.Write(buf.Bytes())
-	if err != nil {
-		log.Println("error writing body:", err)
 		return
 	}
 }
