@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"sync/atomic"
+
+	"github.com/Drnel/btdv_http_from_tcp/internal/response"
 )
 
 type Server struct {
@@ -51,13 +53,13 @@ func (s *Server) listen() {
 }
 
 func (s *Server) handle(conn net.Conn) {
-	response_string := "" +
-		"HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n\r\n" +
-		"Hello World!\r\n"
-	_, err := conn.Write([]byte(response_string))
+	err := response.WriteStatusLine(conn, response.Ok)
 	if err != nil {
-		log.Println("error writing to connection: ", err)
+		log.Println("error writing Status line to connection: ", err)
+	}
+	err = response.WriteHeaders(conn, response.GetDefaultHeaders(0))
+	if err != nil {
+		log.Println("error writing headers to connection: ", err)
 	}
 	conn.Close()
 }
